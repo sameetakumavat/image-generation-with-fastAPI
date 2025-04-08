@@ -1,0 +1,30 @@
+# extra files to ignore
+test.py
+*.sqlite3
+generated_image/
+frontend/node_modules/
+imagegenerationapp.db
+
+# Virtual environment
+.env
+alembic.ini
+venv/
+env/
+imagegenerationenv/
+
+# Logs
+*.log
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Python cache files
+__pycache__/
+*__pycache__/
+*.py[cod]
+*.pyo
