@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import ImagePopup from "./ImagePopup";
 import { useNavigate } from "react-router-dom";
@@ -12,70 +12,82 @@ const MainPage = () => {
   const navigate = useNavigate();
 
   // Fetch all images
-  const fetchImages = async () => {
+  const fetchImages = useCallback(async () => {
     setLoading(true); // Start loading
     try {
       const token = localStorage.getItem("token");
       const response = await axios.get("http://127.0.0.1:8000/image/all_image_details", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const imagesWithLoadingState = response.data.map((img) => ({
-        ...img,
-        loading: true, // Add a loading state for each image
-      }));
-      setImages(imagesWithLoadingState);
+
+      // Fetch image blobs and generate URLs
+      const imagesWithUrls = await Promise.all(
+        response.data.map(async (img) => {
+          try {
+            const imageResponse = await axios.get(img.image_url, {
+              headers: { Authorization: `Bearer ${token}` },
+              responseType: "blob",
+            });
+            const imageUrl = URL.createObjectURL(imageResponse.data);
+            return { ...img, imageUrl, loading: false }; // Add the image URL to the state
+          } catch {
+            return { ...img, imageUrl: null, loading: false }; // Handle errors gracefully
+          }
+        })
+      );
+
+      setImages(imagesWithUrls); // Update state with images and their URLs
     } catch (error) {
       toast.error("Error fetching images");
     } finally {
       setLoading(false); // Stop global loading
     }
-  };
-
-  // Update loading state for a specific image
-  const updateImageLoadingState = (id, isLoading) => {
-    setImages((prevImages) =>
-      prevImages.map((img) =>
-        img.id === id ? { ...img, loading: isLoading } : img
-      )
-    );
-  };
+  }, []);
 
   // Delete an image
-  const handleDelete = async (id) => {
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`http://127.0.0.1:8000/image/delete_image_by_id/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      toast.success("Image deleted successfully");
-      fetchImages(); // Refresh the list
-    } catch (error) {
-      toast.error("Error deleting image");
-    }
-  };
+  const handleDelete = useCallback(
+    async (id) => {
+      try {
+        const token = localStorage.getItem("token");
+        await axios.delete(`http://127.0.0.1:8000/image/delete_image_by_id/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        toast.success("Image deleted successfully");
+        fetchImages(); // Refresh the list
+      } catch (error) {
+        toast.error("Error deleting image");
+      }
+    },
+    [fetchImages]
+  );
 
   // Open Add/Create popup
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     setShowPopup(true);
     setEditImage(null); // Ensure it's not in edit mode
-  };
+  }, []);
 
   // Open Edit popup
-  const handleEdit = (image) => {
+  const handleEdit = useCallback((image) => {
     setEditImage(image);
     setShowPopup(true);
-  };
+  }, []);
 
   // Logout and navigate to login page
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem("token");
     navigate("/");
     toast.info("Logged out successfully");
-  };
+  }, [navigate]);
+
+  // Memoize sorted images to avoid recalculating on every render
+  const sortedImages = useMemo(() => {
+    return [...images].sort((a, b) => a.id - b.id);
+  }, [images]);
 
   useEffect(() => {
     fetchImages();
-  }, []);
+  }, [fetchImages]);
 
   return (
     <div>
@@ -110,58 +122,21 @@ const MainPage = () => {
           </tr>
         </thead>
         <tbody>
-          {images.map((img) => (
+          {sortedImages.map((img) => (
             <tr key={img.id}>
               <td>{img.id}</td>
               <td>{img.prompt}</td>
               <td>{img.created_by}</td>
               <td>
                 <div style={{ position: "relative", width: "100px", height: "100px" }}>
-                  {/* Dots loader while the image is loading */}
-                  {img.loading && (
-                    <div
-                      className="dots-loader"
-                      style={{
-                        position: "absolute",
-                        top: "50%",
-                        left: "50%",
-                        transform: "translate(-50%, -50%)",
-                      }}
-                    >
-                      <div></div>
-                      <div></div>
-                      <div></div>
-                    </div>
-                  )}
-
                   {/* Image */}
                   <img
                     alt="Generated"
                     width="100"
-                    style={{ display: img.loading ? "none" : "block" }}
-                    onLoad={() => updateImageLoadingState(img.id, false)} // Hide dots when image loads
+                    style={{ display: img.imageUrl ? "block" : "none" }}
+                    src={img.imageUrl || ""}
                     onError={(e) => {
-                      e.target.style.display = "none"; // Hide if image fails to load
-                      updateImageLoadingState(img.id, false); // Hide dots
-                    }}
-                    ref={(imgElement) => {
-                      if (imgElement && img.loading) {
-                        const token = localStorage.getItem("token");
-                        axios
-                          .get(img.image_url, {
-                            headers: { Authorization: `Bearer ${token}` },
-                            responseType: "blob",
-                          })
-                          .then((response) => {
-                            const url = URL.createObjectURL(response.data);
-                            imgElement.src = url; // Set the image source
-                            updateImageLoadingState(img.id, false); // Hide dots
-                          })
-                          .catch(() => {
-                            imgElement.style.display = "none"; // Hide if request fails
-                            updateImageLoadingState(img.id, false); // Hide dots
-                          });
-                      }
+                      e.target.style.display = "none"; // Hide if the image fails to load
                     }}
                   />
                 </div>
