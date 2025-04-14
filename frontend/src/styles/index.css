@@ -102,3 +102,73 @@ code {
     transform: scale(1);
   }
 }
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 4 images in a row */
+  gap: 20px;
+}
+
+.image-box {
+  position: relative;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  background-color: #f9f9f9;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.image-prompt {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 10px;
+  text-align: left;
+}
+
+.image-preview {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.image-actions {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 10px;
+}
+
+.actions-label {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 10px;
+  font-weight: bold; 
+}
+
+.image-actions button {
+  background: #e6f7ff;
+  color: #007bff;
+  border: 1px solid #b3e5fc;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  margin: 2px 0;
+}
+
+.image-actions button:hover {
+  background: #b3e5fc;
+}
+
+.image-created-by {
+  font-size: 12px;
+  color: #555;
+  text-align: left;
+}
+
+.filter-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}

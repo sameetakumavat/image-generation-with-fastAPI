@@ -65,7 +65,8 @@ async def get_image_by_id(user: user_dependency, db: db_dependency, image_id: in
             img_stream = BytesIO(img_file.read())
             img_stream.seek(0)
 
-        return StreamingResponse(img_stream, media_type="image/png")
+        return StreamingResponse(img_stream, media_type="image/png", 
+                                 headers={"Content-Disposition": f"attachment; filename={image.image_name}"})
     except ExceptionCustom:
         raise
     except Exception as e:

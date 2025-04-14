@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import ImagePopup from "./ImagePopup";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,9 @@ import { toast } from "react-toastify";
 
 const MainPage = () => {
   const [images, setImages] = useState([]);
+  const [filteredImages, setFilteredImages] = useState([]); // For filtered images
+  const [filter, setFilter] = useState(""); // Selected filter value
+  const [filterOptions, setFilterOptions] = useState([]); // Unique "Created By" values
   const [showPopup, setShowPopup] = useState(false); // For Add/Create popup
   const [editImage, setEditImage] = useState(null); // For Edit popup
   const [loading, setLoading] = useState(true); // Global loading state
@@ -37,6 +40,11 @@ const MainPage = () => {
       );
 
       setImages(imagesWithUrls); // Update state with images and their URLs
+      setFilteredImages(imagesWithUrls); // Initialize filtered images
+
+      // Extract unique "Created By" values for the dropdown
+      const uniqueCreators = [...new Set(imagesWithUrls.map((img) => img.created_by))];
+      setFilterOptions(uniqueCreators);
     } catch (error) {
       toast.error("Error fetching images");
     } finally {
@@ -73,6 +81,29 @@ const MainPage = () => {
     setShowPopup(true);
   }, []);
 
+  // Download an image
+  const handleDownload = useCallback(async (id) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`http://127.0.0.1:8000/image/get_image_by_id/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: "blob",
+      });
+
+      // Create a URL for the blob and trigger the download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `image_${id}.png`; // Set the filename
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.URL.revokeObjectURL(url); // Clean up the URL object
+    } catch (error) {
+      toast.error("Error downloading the image. Please try again.");
+    }
+  }, []);
+
   // Logout and navigate to login page
   const handleLogout = useCallback(() => {
     localStorage.removeItem("token");
@@ -80,10 +111,16 @@ const MainPage = () => {
     toast.info("Logged out successfully");
   }, [navigate]);
 
-  // Memoize sorted images to avoid recalculating on every render
-  const sortedImages = useMemo(() => {
-    return [...images].sort((a, b) => a.id - b.id);
-  }, [images]);
+  // Filter images by "Created By"
+  const handleFilterChange = (e) => {
+    const value = e.target.value;
+    setFilter(value);
+    if (value === "") {
+      setFilteredImages(images); // Show all images if no filter
+    } else {
+      setFilteredImages(images.filter((img) => img.created_by === value));
+    }
+  };
 
   useEffect(() => {
     fetchImages();
@@ -108,51 +145,67 @@ const MainPage = () => {
           Logout
         </button>
       </div>
-      <button className="btn btn-primary mb-3" onClick={handleAdd}>
-        Generate New Image
-      </button>
-      <table className="table table-striped">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Prompt</th>
-            <th>Created By</th>
-            <th>Generated Image</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sortedImages.map((img) => (
-            <tr key={img.id}>
-              <td>{img.id}</td>
-              <td>{img.prompt}</td>
-              <td>{img.created_by}</td>
-              <td>
-                <div style={{ position: "relative", width: "100px", height: "100px" }}>
-                  {/* Image */}
-                  <img
-                    alt="Generated"
-                    width="100"
-                    style={{ display: img.imageUrl ? "block" : "none" }}
-                    src={img.imageUrl || ""}
-                    onError={(e) => {
-                      e.target.style.display = "none"; // Hide if the image fails to load
-                    }}
-                  />
-                </div>
-              </td>
-              <td>
-                <button className="btn btn-info btn-sm me-2" onClick={() => handleEdit(img)}>
-                  Edit
-                </button>
-                <button className="btn btn-outline-danger btn-sm" onClick={() => handleDelete(img.id)}>
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+      <div className="d-flex align-items-center mb-3">
+        <button className="btn btn-primary me-3" onClick={handleAdd}>
+          Generate New Image
+        </button>
+
+        {/* Filter Dropdown */}
+        <div className="filter-container">
+          <label htmlFor="filter" className="form-label">
+            Filter by Created By:
+          </label>
+          <select
+            id="filter"
+            className="form-select"
+            value={filter}
+            onChange={handleFilterChange}
+          >
+            <option value="">All</option>
+            {filterOptions.map((creator) => (
+              <option key={creator} value={creator}>
+                {creator}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Image Grid */}
+      <div className="image-grid">
+        {filteredImages.map((img) => (
+          <div key={img.id} className="image-box">
+            {/* Prompt */}
+            <div className="image-prompt">
+              <strong>Prompt:</strong> {img.prompt}
+            </div>
+
+            {/* Image */}
+            <img
+              alt="Generated"
+              className="image-preview"
+              src={img.imageUrl || ""}
+              onError={(e) => {
+                e.target.style.display = "none"; // Hide if the image fails to load
+              }}
+            />
+
+            {/* Actions */}
+            <div className="image-actions">
+              <div className="actions-label">Actions:</div>
+              <button onClick={() => handleEdit(img)}>Edit</button>
+              <button onClick={() => handleDelete(img.id)}>Delete</button>
+              <button onClick={() => handleDownload(img.id)}>Download</button>
+            </div>
+
+            {/* Created By */}
+            <div className="image-created-by">
+              <strong>Created By:</strong> {img.created_by}
+            </div>
+          </div>
+        ))}
+      </div>
 
       {showPopup && (
         <ImagePopup
